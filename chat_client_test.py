@@ -1,0 +1,85 @@
+import socket
+import json
+import threading
+from cmd import Cmd
+
+class Client(Cmd):
+	"""python socket chat client"""
+	prompt = '>>>'
+	intro = '[Welcome] 简易聊天室客户端(Cli版)'
+	buffersize = 1024
+
+	def __init__(self, host):
+		super().__init__()
+		self.socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.host = host
+		self.receive_loop_thread = None
+		self.is_login = False
+
+	def __recive_thread(self):
+		receive_data, addr = self.socket.recvfrom(1024)
+		js = json.loads(receive_data.decode())
+		# 判断服务器发来的消息类型
+		print('recive', receive_data)
+		
+
+	# 注册账号
+	def do_register(self, args):
+		try:
+			username = args.split(' ')[0]
+			password = args.split(' ')[1]
+		except:
+			print('Useage: register username password')
+			return
+
+		self.socket.sendto(json.dumps({
+			'action': 'register',
+			'username': username,
+			'password': password,
+			}).encode(), self.host)
+
+		receive_data, addr = self.socket.recvfrom(1024)
+		js = json.loads(receive_data.decode())
+		if js['register'] == 'success':
+			print('INFO: register successful!')
+		else:
+			print('INFO: register failed!')
+
+
+	def do_login(self, args):
+		if self.is_login == True:
+			print('you are logged')
+			return
+		try:
+			username = args.split(' ')[0]
+			password = args.split(' ')[1]
+		except:
+			print('Useage: login username password')
+			return
+
+		self.socket.sendto(json.dumps({
+			'action': 'login',
+			'username': username,
+			'password': password,
+			}).encode(), self.host)
+		receive_data, addr = self.socket.recvfrom(1024)
+		js = json.loads(receive_data.decode())
+		if js['login'] == 'success':
+			print('INFO: login success')
+			self.is_login = True
+			self.receive_loop_thread = threading.Thread(target=self.__recive_thread)
+			self.receive_loop_thread.setDaemon(True)
+			self.receive_loop_thread.start()
+		else:
+			print('INFO: login failed')
+
+
+	def start(self):
+		self.cmdloop()
+
+	def do_exit(self, arg):  # 以do_*开头为命令
+		print("Exit")
+		exit(0)
+
+c = Client(('127.0.0.1', 12346))
+c.start()
