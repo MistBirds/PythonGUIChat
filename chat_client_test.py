@@ -2,6 +2,7 @@ import socket
 import json
 import threading
 from cmd import Cmd
+from time import sleep
 
 class Client(Cmd):
 	"""python socket chat client"""
@@ -15,12 +16,16 @@ class Client(Cmd):
 		self.host = host
 		self.receive_loop_thread = None
 		self.is_login = False
+		self.username = None
+		self.interval = 60
+		self.keep_alive_thread = None
 
 	def __recive_thread(self):
-		receive_data, addr = self.socket.recvfrom(1024)
-		js = json.loads(receive_data.decode())
-		# 判断服务器发来的消息类型
-		print('recive', receive_data)
+		while self.is_login:
+			receive_data, addr = self.socket.recvfrom(1024)
+			js = json.loads(receive_data.decode())
+			# 判断服务器发来的消息类型
+			print('recive', receive_data)
 		
 
 	# 注册账号
@@ -67,9 +72,13 @@ class Client(Cmd):
 		if js['login'] == 'success':
 			print('INFO: login success')
 			self.is_login = True
+			self.username = username
 			self.receive_loop_thread = threading.Thread(target=self.__recive_thread)
 			self.receive_loop_thread.setDaemon(True)
 			self.receive_loop_thread.start()
+
+			self.keep_alive_thread = threading.Thread(target=self._thread_keep_alive)
+			self.keep_alive_thread.start()
 		else:
 			print('INFO: login failed')
 
@@ -78,8 +87,21 @@ class Client(Cmd):
 		self.cmdloop()
 
 	def do_exit(self, arg):  # 以do_*开头为命令
+		self.socket.sendto(json.dumps({
+			'action': 'exit',
+			'username': self.username,
+			}).encode(), self.host)
+		self.is_login = False
 		print("Exit")
 		exit(0)
+
+	def _thread_keep_alive(self):
+		while self.is_login:
+			sleep(self.interval)
+			self.socket.sendto(json.dumps({
+				'action': 'update_timestamp',
+				'username': self.username,
+				}).encode(), self.host)
 
 c = Client(('127.0.0.1', 12346))
 c.start()
