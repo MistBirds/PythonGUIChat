@@ -40,59 +40,75 @@ class ChatServer():
 
 				# 注册
 				if js['action'] == 'register':
-					self.cursor.execute('SELECT count(*) FROM users WHERE username="%s"' % js['username'])
-					res = self.cursor.fetchone()
-					# 成功注册
-					if res[0] == 0:
-						self.cursor.execute('INSERT INTO users values("%s","%s")' % (js['username'],js['password']))
-						self.db.commit()
-						self.socket.sendto(json.dumps({
-							'register': 'success',
-							}).encode(), client_addr)
-					# 注册失败
-					else:
-						self.socket.sendto(json.dumps({
-							'register': 'failure',
-							}).encode(), client_addr)
+					self.client_register(js, client_addr)
 
 				# 登陆
 				elif js['action'] == 'login':
-					self.cursor.execute('SELECT password FROM users WHERE username="%s"' % js['username'])
-					res = self.cursor.fetchone()
-					# 登陆失败
-					if res == None or res[0] != js['password']:
-						self.socket.sendto(json.dumps({
-							'login': 'failure',
-							}).encode(), client_addr)
-					# 登陆成功
-					elif res[0] == js['password']:
-						self.socket.sendto(json.dumps({
-							'login': 'success',
-							}).encode(), client_addr)
-						# 登陆成功后添加在线列表
-						user_info = [client_addr, time()]
-						self.user_list[js['username']]=user_info
+					self.client_login(js, client_addr)
 
 				# Exit
 				elif js['action'] == 'exit':
-					if js['username'] in self.user_list:
-						self.user_list.pop(js['username'])
+					self.client_exit(js)
 
 				# update timestamp
 				elif js['action'] == 'update_timestamp':
-					if js['username'] in self.user_list:
-						self.user_list[js['username']][1] = time()
-						self.socket.sendto(json.dumps({
-							'isonline': 'yes',
-							}).encode(), client_addr)
-					else:
-						self.socket.sendto(json.dumps({
-							'isonline': 'no',
-							}).encode(), client_addr)
+					self.client_update_timestamp(js, client_addr)
 					
 			except Exception as e:
 				print('error: ',e)
 				exit(1)
+
+	def client_exit(self, js):
+		if js['username'] in self.user_list:
+			self.user_list.pop(js['username'])
+
+
+	def client_register(self, js, client_addr):
+		self.cursor.execute('SELECT count(*) FROM users WHERE username="%s"' % js['username'])
+		res = self.cursor.fetchone()
+		# 成功注册
+		if res[0] == 0:
+			self.cursor.execute('INSERT INTO users values("%s","%s")' % (js['username'],js['password']))
+			self.db.commit()
+			self.socket.sendto(json.dumps({
+				'register': 'success',
+				}).encode(), client_addr)
+		# 注册失败
+		else:
+			self.socket.sendto(json.dumps({
+				'register': 'failure',
+				}).encode(), client_addr)
+
+
+	def client_login(self, js, client_addr):
+		self.cursor.execute('SELECT password FROM users WHERE username="%s"' % js['username'])
+		res = self.cursor.fetchone()
+		# 登陆失败
+		if res == None or res[0] != js['password']:
+			self.socket.sendto(json.dumps({
+				'login': 'failure',
+				}).encode(), client_addr)
+		# 登陆成功
+		elif res[0] == js['password']:
+			self.socket.sendto(json.dumps({
+				'login': 'success',
+				}).encode(), client_addr)
+			# 登陆成功后添加在线列表
+			user_info = [client_addr, time()]
+			self.user_list[js['username']]=user_info
+
+
+	def client_update_timestamp(self, js, client_addr):
+		if js['username'] in self.user_list:
+			self.user_list[js['username']][1] = time()
+			self.socket.sendto(json.dumps({
+				'isonline': 'yes',
+				}).encode(), client_addr)
+		else:
+			self.socket.sendto(json.dumps({
+				'isonline': 'no',
+				}).encode(), client_addr)
+
 
 	def _thread_online_judge(self):
 		while True:

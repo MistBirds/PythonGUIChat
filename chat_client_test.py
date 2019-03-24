@@ -17,13 +17,16 @@ class Client(Cmd):
 		self.receive_loop_thread = None
 		self.is_login = False
 		self.username = None
-		self.interval = 60
+		self.interval = 6
 		self.keep_alive_thread = None
+
+		self.socket.settimeout(self.interval + 1)
 
 	def __recive_thread(self):
 		while self.is_login:
 			receive_data, addr = self.socket.recvfrom(1024)
 			js = json.loads(receive_data.decode())
+
 			# 判断服务器发来的消息类型
 			print('recive', receive_data)
 		
@@ -67,8 +70,10 @@ class Client(Cmd):
 			'username': username,
 			'password': password,
 			}).encode(), self.host)
+		
 		receive_data, addr = self.socket.recvfrom(1024)
 		js = json.loads(receive_data.decode())
+
 		if js['login'] == 'success':
 			print('INFO: login success')
 			self.is_login = True
@@ -78,6 +83,7 @@ class Client(Cmd):
 			self.receive_loop_thread.start()
 
 			self.keep_alive_thread = threading.Thread(target=self._thread_keep_alive)
+			self.keep_alive_thread.setDaemon(True)
 			self.keep_alive_thread.start()
 		else:
 			print('INFO: login failed')
@@ -92,16 +98,20 @@ class Client(Cmd):
 			'username': self.username,
 			}).encode(), self.host)
 		self.is_login = False
+
 		print("Exit")
 		exit(0)
 
 	def _thread_keep_alive(self):
 		while self.is_login:
-			sleep(self.interval)
-			self.socket.sendto(json.dumps({
-				'action': 'update_timestamp',
-				'username': self.username,
-				}).encode(), self.host)
+			try:
+				sleep(self.interval)
+				self.socket.sendto(json.dumps({
+					'action': 'update_timestamp',
+					'username': self.username,
+					}).encode(), self.host)
+			except:
+				print('cannot connect the host')
 
 c = Client(('127.0.0.1', 12346))
 c.start()
