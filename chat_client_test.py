@@ -28,8 +28,31 @@ class Client(Cmd):
 			js = json.loads(receive_data.decode())
 
 			# 判断服务器发来的消息类型
-			print('recive', receive_data)
+			if 'action' in js.keys():
+				if js['action'] == 'userlist':
+					print('userlist:', js['userlist'])
+
+				if js['action'] == 'sendmessage':
+					print('%s: %s' % (js['sender'], js['message']))
+
 		
+
+	def do_sendto(self, args):
+		try:
+			acceptor = args.split(' ')[0]
+			message = args.split(' ')[1]
+		except:
+			print('Useage: sendto acceptor message')
+			return
+
+		self.socket.sendto(json.dumps({
+			'action': 'sendmessage',
+			'message': message,
+			'acceptor': acceptor,
+			'username': self.username,
+			}).encode(), self.host)
+
+
 
 	# 注册账号
 	def do_register(self, args):
@@ -92,7 +115,7 @@ class Client(Cmd):
 	def start(self):
 		self.cmdloop()
 
-	def do_exit(self, arg):  # 以do_*开头为命令
+	def do_exit(self, args):  # 以do_*开头为命令
 		self.socket.sendto(json.dumps({
 			'action': 'exit',
 			'username': self.username,
@@ -101,6 +124,16 @@ class Client(Cmd):
 
 		print("Exit")
 		exit(0)
+
+
+	def do_userlist(self, arg):
+		if self.is_login:
+			self.socket.sendto(json.dumps({
+				'action': 'userlist',
+				}).encode(), self.host)
+		else:
+			print('you should login first')
+
 
 	def _thread_keep_alive(self):
 		while self.is_login:
@@ -112,6 +145,7 @@ class Client(Cmd):
 					}).encode(), self.host)
 			except:
 				print('cannot connect the host')
+
 
 c = Client(('127.0.0.1', 12346))
 c.start()

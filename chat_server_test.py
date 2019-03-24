@@ -12,8 +12,8 @@ class ChatServer():
 	def __init__(self, port):
 		self.user_list = {}
 		self.port = port
-		self.interval = 60
-		self.timeout = 65
+		self.interval = 6
+		self.timeout = 7
 
 	def run(self):
 		self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -33,32 +33,28 @@ class ChatServer():
 		# jt.setDaemon(True)
 		jt.start()
 
+		actions = {
+			'register': self.client_register,
+			'login': self.client_login,
+			'update_timestamp': self.client_update_timestamp,
+			'exit': self.client_exit,
+			'userlist': self.client_userlist,
+			'sendmessage': self.client_sendmessage,
+			}
+
 		while True:
 			try:
 				receive_data, client_addr = self.socket.recvfrom(1024)
 				js = json.loads(receive_data.decode())
-
-				# 注册
-				if js['action'] == 'register':
-					self.client_register(js, client_addr)
-
-				# 登陆
-				elif js['action'] == 'login':
-					self.client_login(js, client_addr)
-
-				# Exit
-				elif js['action'] == 'exit':
-					self.client_exit(js)
-
-				# update timestamp
-				elif js['action'] == 'update_timestamp':
-					self.client_update_timestamp(js, client_addr)
+				# execute action to response the request
+				action = actions[js['action']]
+				action(js, client_addr)
 					
 			except Exception as e:
 				print('error: ',e)
 				exit(1)
 
-	def client_exit(self, js):
+	def client_exit(self, js, client_addr):
 		if js['username'] in self.user_list:
 			self.user_list.pop(js['username'])
 
@@ -109,6 +105,21 @@ class ChatServer():
 				'isonline': 'no',
 				}).encode(), client_addr)
 
+
+	def client_userlist(self, js, client_addr):
+		self.socket.sendto(json.dumps({
+			'action': 'userlist',
+			'userlist': self.user_list,
+			}).encode(), client_addr)
+
+
+	def client_sendmessage(self, js, client_addr):
+		if js['acceptor'] in self.user_list:
+			self.socket.sendto(json.dumps({
+				'action': 'sendmessage',
+				'message': js['message'],
+				'sender': js['username'],
+				}).encode(), self.user_list[js['acceptor']][0])
 
 	def _thread_online_judge(self):
 		while True:
