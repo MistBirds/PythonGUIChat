@@ -1,19 +1,28 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter.messagebox import showinfo, showwarning, showerror
+# askyesnocancel,askretrycancel,ask*
 import socket
 import json
 import threading
+from time import sleep, time
 
 class SJChat():
 	def __init__(self, host):
-		self.socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.interval = 6
 		self.host = host
-		self.var_user = None
-		self.var_password = None
-		self.var_repassword = None
+		self.socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+		self.socket.settimeout(self.interval + 1)	
 		self.is_login = False
 		self.receive_loop_thread = None
 		self.keep_alive_thread = None
+		self.username = None
+		self.pre_connect_time = None
+		self.time_difference = None
+
+		self.var_user = None
+		self.var_password = None
+		self.var_repassword = None
 		self.top = None
 
 		self.gui_login()
@@ -63,21 +72,23 @@ class SJChat():
 			showinfo('INFO', 'login success')
 			self.is_login = True
 			self.username = username
+			self.pre_connect_time = js['time']
+			self.time_difference = js['time'] - time()
 			self.top.destroy()
 
 			# is nessary?
 			del self.var_password
 			del self.var_user
-			del self.top
 			del self.var_repassword
 
-			# self.receive_loop_thread = threading.Thread(target=self.__recive_thread)
-			# self.receive_loop_thread.setDaemon(True)
-			# self.receive_loop_thread.start()
+			self.receive_loop_thread = threading.Thread(target=self._recive_thread)
+			self.receive_loop_thread.setDaemon(True)
+			self.receive_loop_thread.start()
 
-			# self.keep_alive_thread = threading.Thread(target=self._thread_keep_alive)
-			# self.keep_alive_thread.setDaemon(True)
-			# self.keep_alive_thread.start()
+			self.keep_alive_thread = threading.Thread(target=self._thread_keep_alive)
+			self.keep_alive_thread.setDaemon(True)
+			self.keep_alive_thread.start()
+			self.gui_main()
 		else:
 			showinfo('INFO', 'login failed')
 
@@ -142,6 +153,68 @@ class SJChat():
 			self.gui_login()
 		else:
 			showinfo('INFO', 'register failed')
+
+
+	def _thread_keep_alive(self):
+		while self.is_login:
+			sleep(self.interval)
+			self.socket.sendto(json.dumps({
+				'action': 'update_timestamp',
+				'username': self.username,
+				}).encode(), self.host)
+			if abs(time() + self.time_difference - \
+				self.pre_connect_time) > 2*self.interval:
+				self.is_login = False
+				self.top.title("SJChat %s-offline" % self.username)
+
+	def _recive_thread(self):
+		while self.is_login:
+			receive_data, addr = self.socket.recvfrom(1024)
+			js = json.loads(receive_data.decode())
+
+			# 判断服务器发来的消息类型
+			if 'action' in js.keys():
+				if js['action'] == 'is_online':
+					self.pre_connect_time = js['time']
+				elif js['action'] == 'userlist':
+					print('userlist:', js['userlist'])
+				elif js['action'] == 'sendmessage':
+					print('%s: %s' % (js['sender'], js['message']))
+
+
+	# def get_friend_list(self):
+	# 	self.socket.sendto(json.dumps({
+	# 		'action': 'get_friend_list',
+	# 		'username': username,
+	# 		}).encode(), self.host)
+
+	def gui_main(self):
+		self.top = tk.Tk()
+		self.top.title("SJChat %s" % self.username)
+		self.top.geometry('320x600')
+		self.top.resizable(width=False, height=False)
+		
+		self.scrollbar = tk.Scrollbar(self.top)
+		self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+		title = ['1','2','3']
+		self.box = ttk.Treeview(self.top, columns=title,
+			yscrollcommand=self.scrollbar.set, height='20',
+			show='headings')
+
+
+		self.box.column('1', width=80, anchor='w')
+		self.box.column('2', width=150, anchor='w')
+		self.box.column('3', width=35, anchor='w')
+
+		self.box.heading('1', text='昵称')
+		self.box.heading('2', text='简介')
+		self.box.heading('3', text='状态')
+		for i in range(20):
+			self.box.insert('','end',values=['zhangsan','let it go','在线'])
+			self.box.insert('','end',values=['lisi','fuck all world','离线'])
+		self.scrollbar.config(command=self.box.yview)
+		self.box.pack()
+		tk.mainloop()
 
 
 t = SJChat(('127.0.0.1', 12346))

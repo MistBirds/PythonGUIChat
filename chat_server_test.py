@@ -80,7 +80,7 @@ class ChatServer():
 		self.cursor.execute('SELECT password FROM users WHERE username="%s"' % js['username'])
 		res = self.cursor.fetchone()
 		# 登陆失败
-		if res == None or res[0] != js['password']:
+		if (res == None or res[0] != js['password']) or (js['username'] in self.user_list):
 			self.socket.sendto(json.dumps({
 				'login': 'failure',
 				}).encode(), client_addr)
@@ -88,6 +88,7 @@ class ChatServer():
 		elif res[0] == js['password']:
 			self.socket.sendto(json.dumps({
 				'login': 'success',
+				'time': time(),
 				}).encode(), client_addr)
 			# 登陆成功后添加在线列表
 			user_info = [client_addr, time()]
@@ -98,11 +99,8 @@ class ChatServer():
 		if js['username'] in self.user_list:
 			self.user_list[js['username']][1] = time()
 			self.socket.sendto(json.dumps({
-				'isonline': 'yes',
-				}).encode(), client_addr)
-		else:
-			self.socket.sendto(json.dumps({
-				'isonline': 'no',
+				'action': 'is_online',
+				'time': time(),
 				}).encode(), client_addr)
 
 
@@ -120,6 +118,13 @@ class ChatServer():
 				'message': js['message'],
 				'sender': js['username'],
 				}).encode(), self.user_list[js['acceptor']][0])
+
+
+	# def get_user_friend(self, username):
+	# 	friend_list = []
+	# 	self.cursor.execute('SELECT friend FROM users WHERE username="%s"' % username)
+	# 	res = self.cursor.fetchone()
+
 
 	def _thread_online_judge(self):
 		while True:
