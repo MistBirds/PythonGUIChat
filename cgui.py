@@ -70,6 +70,7 @@ class SJChat():
 
 		if js['login'] == 'success':
 			showinfo('INFO', 'login success')
+			self.friends = js['friends']
 			self.is_login = True
 			self.username = username
 			self.pre_connect_time = js['time']
@@ -194,13 +195,13 @@ class SJChat():
 		self.top.geometry('320x600')
 		self.top.resizable(width=False, height=False)
 		
+		# friend list
 		self.scrollbar = tk.Scrollbar(self.top)
 		self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 		title = ['1','2','3']
 		self.box = ttk.Treeview(self.top, columns=title,
 			yscrollcommand=self.scrollbar.set, height='20',
 			show='headings')
-
 
 		self.box.column('1', width=80, anchor='w')
 		self.box.column('2', width=150, anchor='w')
@@ -209,11 +210,18 @@ class SJChat():
 		self.box.heading('1', text='昵称')
 		self.box.heading('2', text='简介')
 		self.box.heading('3', text='状态')
-		for i in range(20):
-			self.box.insert('','end',values=['zhangsan','let it go','在线'])
-			self.box.insert('','end',values=['lisi','fuck all world','离线'])
+		for i in self.friends:
+			self.box.insert('','end',values=i)
 		self.scrollbar.config(command=self.box.yview)
 		self.box.pack()
+
+		# action menu
+		self.addfriend = tk.Button(self.top, text='添加好友', command=None, font=('宋体',14,'normal'))
+		self.addfriend.place(x=50, y=480, width=90)
+
+		self.modify_info = tk.Button(self.top, text='修改签名', command=None, font=('宋体',14,'normal'))
+		self.modify_info.place(x=160, y=480, width=90)
+
 		tk.mainloop()
 
 

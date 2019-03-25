@@ -21,8 +21,10 @@ class ChatServer():
 		if not path.exists('chat.db'):
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
-			self.cursor.execute('CREATE TABLE users(username varchar(16),\
-				password varchar(16))')
+			self.cursor.execute('CREATE TABLE users(username varchar(16) PRIMARY KEY,\
+				password varchar(16), userinfo varchar(100))')
+			self.cursor.execute('CREATE TABLE friends(username varchar(16),\
+				friend varchar(16), CONSTRAINT pk PRIMARY KEY(username,friend))')
 		else:
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
@@ -86,9 +88,11 @@ class ChatServer():
 				}).encode(), client_addr)
 		# 登陆成功
 		elif res[0] == js['password']:
+			friends = self.get_user_friend(js['username'])
 			self.socket.sendto(json.dumps({
 				'login': 'success',
 				'time': time(),
+				'friends': friends,
 				}).encode(), client_addr)
 			# 登陆成功后添加在线列表
 			user_info = [client_addr, time()]
@@ -120,10 +124,22 @@ class ChatServer():
 				}).encode(), self.user_list[js['acceptor']][0])
 
 
-	# def get_user_friend(self, username):
-	# 	friend_list = []
-	# 	self.cursor.execute('SELECT friend FROM users WHERE username="%s"' % username)
-	# 	res = self.cursor.fetchone()
+	def get_user_friend(self, username):
+		friend_list = []
+		self.cursor.execute('SELECT friend FROM friends WHERE username="%s"' % username)
+		res = self.cursor.fetchall()
+		for i in res:
+			t = []
+			t.append(i[0])
+			self.cursor.execute('SELECT userinfo FROM users WHERE username="%s"' % i[0])
+			t.append(self.cursor.fetchone()[0])
+			if i[0] in self.user_list:
+				t.append('在线')
+			else:
+				t.append('离线')
+			friend_list.append(t)
+		# return [['bird', 'let it go', '在线'], ['u1', 'df', '离线']]
+		return friend_list
 
 
 	def _thread_online_judge(self):
