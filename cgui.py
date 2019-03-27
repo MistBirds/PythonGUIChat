@@ -20,6 +20,11 @@ class SJChat():
 		self.profile = None
 		self.pre_connect_time = None
 		self.time_difference = None
+		self.box = None
+		self.find_user_box = None
+
+		# _recive_thread provided data to gui_add_friend
+		self.res_of_find_friends = []
 
 		self.var_user = None
 		self.var_password = None
@@ -191,25 +196,114 @@ class SJChat():
 
 
 	def gui_add_friend(self):
-		if not self.is_login:
-			return
+		# if not self.is_login:
+		# 	return
 		x = tk.Tk()
 		x.title('SJChat add friend')
-		x.geometry('200x160')
+		x.geometry('300x460')
 		x.resizable(width=False, height=False)
 
-		var_friend = tk.StringVar(x ,value='')
-		entry_friend = tk.Entry(x, text='', textvariable=var_friend, font=('宋体', 16, 'normal'))
-		entry_friend.pack()
+		var_friend_username = tk.StringVar(x ,value='')
+		var_friend_nickname = tk.StringVar(x ,value='')
 
-		btn_add = tk.Button(x, text='查找好友', command=self.add_friend, font=('宋体', 16, 'normal'))
+		label_invisible0 = tk.Label(x, text='')
+		label_invisible0.pack()
+
+		label_username = tk.Label(x, text='账户查找', font=('宋体', 16, 'normal'))
+		label_username.pack()
+
+		entry_friend_username = tk.Entry(x, text='', textvariable=var_friend_username, font=('宋体', 16, 'normal'))
+		entry_friend_username.pack()
+
+		btn_find_by_username = tk.Button(x, text='账户查找', command=lambda: self.find_by_username(var_friend_username.get(), var_friend_nickname), font=('宋体', 16, 'normal'))
+		btn_find_by_username.pack()
+
+		label_invisible1 = tk.Label(x, text='')
+		label_invisible1.pack()
+
+		label_nickname = tk.Label(x, text='昵称查找', font=('宋体', 16, 'normal'))
+		label_nickname.pack()
+
+		entry_friend_nickname = tk.Entry(x, text='', textvariable=var_friend_nickname, font=('宋体', 16, 'normal'))
+		entry_friend_nickname.pack()
+
+		btn_add = tk.Button(x, text='昵称查找', command=lambda: self.find_by_nickname(var_friend_nickname.get(),var_friend_username), font=('宋体', 16, 'normal'))
 		btn_add.pack()
 
+		label_invisible2 = tk.Label(x, text='')
+		label_invisible2.pack()
+
+		# result list
+		scrollbar = tk.Scrollbar(x)
+		scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+		title = ['1','2','3']
+		self.find_user_box = ttk.Treeview(x, columns=title,
+			yscrollcommand=scrollbar.set, height='8',
+			show='headings')
+
+		self.find_user_box.column('1', width=80, anchor='w')
+		self.find_user_box.column('2', width=150, anchor='w')
+		self.find_user_box.column('3', width=35, anchor='w')
+
+		self.find_user_box.heading('1', text='昵称')
+		self.find_user_box.heading('2', text='简介')
+		self.find_user_box.heading('3', text='性别')
+
+		scrollbar.config(command=self.find_user_box.yview)
+		self.find_user_box.pack()
+
+		tk.mainloop()
 
 
-	def add_friend(self):
-		pass
-		
+
+	def find_by_username(self,username,var_friend_nickname):
+		# clear nickname
+		var_friend_nickname.set("")
+		# clear the list
+		items = self.find_user_box.get_children()
+		for item in items:
+			self.find_user_box.delete(item)
+		# clear self.res_of_find_friends
+		self.res_of_find_friends.clear()
+
+		# sent request to server for looking user by username
+		self.socket.sendto(json.dumps({
+			'action': 'find_friends',
+			'type': 'by_username',
+			'username': username,
+			}).encode(), self.host)
+
+		sleep(0.5)
+		# insert the list
+		if self.res_of_find_friends != [] and self.res_of_find_friends != None:
+			self.find_user_box.insert('','end',values=self.res_of_find_friends[1:])
+
+
+	def find_by_nickname(self, nickname, var_friend_username):
+		# clear username
+		var_friend_username.set("")
+		# clear the list
+		items = self.find_user_box.get_children()
+		for item in items:
+			self.find_user_box.delete(item)
+		# clear self.res_of_find_friends
+		self.res_of_find_friends.clear()
+
+		# sent request to server for looking user by nickname
+		self.socket.sendto(json.dumps({
+			'action': 'find_friends',
+			'type': 'by_nickname',
+			'nickname': nickname,
+			}).encode(), self.host)
+
+		sleep(0.5)
+		# insert the list
+
+		for item in self.res_of_find_friends:
+			self.find_user_box.insert('','end',values=item[1:])
+			
+
+
 
 	def gui_modify_info(self):
 		if not self.is_login:
@@ -282,14 +376,15 @@ class SJChat():
 			if 'action' in js.keys():
 				if js['action'] == 'is_online':
 					self.pre_connect_time = js['time']
-				elif js['action'] == 'userlist':
-					print('userlist:', js['userlist'])
-				elif js['action'] == 'sendmessage':
-					print('%s: %s' % (js['sender'], js['message']))
+				# elif js['action'] == 'userlist':
+				# 	print('userlist:', js['userlist'])
+				# elif js['action'] == 'sendmessage':
+				# 	print('%s: %s' % (js['sender'], js['message']))
 				elif js['action'] == 'update_profile_ok':
 					self.profile = js['profile']
 					self.top.title("SJChat %s" % self.profile['nickname'])
-
+				elif js['action'] == 'res_of_find_friends':
+					self.res_of_find_friends = js['friends']
 
 
 	def gui_main(self):

@@ -44,6 +44,7 @@ class ChatServer():
 			'userlist': self.client_userlist,
 			'sendmessage': self.client_sendmessage,
 			'update_profile': self.client_update_profile,
+			'find_friends': self.client_find_friends,
 			}
 
 		while True:
@@ -143,6 +144,26 @@ class ChatServer():
 					'profile': profile,
 					}).encode(), client_addr)
 
+	def client_find_friends(self, js, client_addr):
+		if js['type'] == 'by_username':
+			self.cursor.execute('SELECT username, nickname, userinfo, sex\
+			 FROM users WHERE username="%s"' % js['username'])
+			res = self.cursor.fetchone()
+			if res != None:
+				self.socket.sendto(json.dumps({
+					'action': 'res_of_find_friends',
+					'friends': res,
+					}).encode(), client_addr)
+		elif js['type'] == 'by_nickname':
+			self.cursor.execute('SELECT username, nickname, userinfo, sex\
+			 FROM users WHERE nickname="%s"' % js['nickname'])
+			res = self.cursor.fetchall()
+			if res != None:
+				self.socket.sendto(json.dumps({
+					'action': 'res_of_find_friends',
+					'friends': res,
+					}).encode(), client_addr)
+		
 
 	def get_user_friend(self, username):
 		friend_list = []
