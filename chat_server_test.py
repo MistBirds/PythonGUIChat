@@ -22,7 +22,8 @@ class ChatServer():
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
 			self.cursor.execute('CREATE TABLE users(username varchar(16) PRIMARY KEY,\
-				password varchar(16), userinfo varchar(100))')
+				password varchar(16), userinfo varchar(100), nickname varchar(16), \
+				sex varchar(6) check (sex in ("男","女")))')
 			self.cursor.execute('CREATE TABLE friends(username varchar(16),\
 				friend varchar(16), CONSTRAINT pk PRIMARY KEY(username,friend))')
 		else:
@@ -42,6 +43,7 @@ class ChatServer():
 			'exit': self.client_exit,
 			'userlist': self.client_userlist,
 			'sendmessage': self.client_sendmessage,
+			'update_profile': self.client_update_profile,
 			}
 
 		while True:
@@ -66,7 +68,8 @@ class ChatServer():
 		res = self.cursor.fetchone()
 		# 成功注册
 		if res[0] == 0:
-			self.cursor.execute('INSERT INTO users values("%s","%s")' % (js['username'],js['password']))
+			self.cursor.execute('INSERT INTO users values("%s","%s","%s","%s","%s")' % 
+				(js['username'],js['password'],js['info'],js['nickname'],'男' if js['sex'] == 0 else '女'))
 			self.db.commit()
 			self.socket.sendto(json.dumps({
 				'register': 'success',
@@ -79,7 +82,7 @@ class ChatServer():
 
 
 	def client_login(self, js, client_addr):
-		self.cursor.execute('SELECT password FROM users WHERE username="%s"' % js['username'])
+		self.cursor.execute('SELECT password,userinfo,nickname,sex FROM users WHERE username="%s"' % js['username'])
 		res = self.cursor.fetchone()
 		# 登陆失败
 		if (res == None or res[0] != js['password']) or (js['username'] in self.user_list):
@@ -92,6 +95,7 @@ class ChatServer():
 			self.socket.sendto(json.dumps({
 				'login': 'success',
 				'time': time(),
+				'profile': {'userinfo': res[1], 'nickname': res[2], 'sex': res[3]},
 				'friends': friends,
 				}).encode(), client_addr)
 			# 登陆成功后添加在线列表
@@ -122,6 +126,22 @@ class ChatServer():
 				'message': js['message'],
 				'sender': js['username'],
 				}).encode(), self.user_list[js['acceptor']][0])
+
+
+	def client_update_profile(self, js, client_addr):
+		if js['nickname'] != '' and js['nickname'] != None:
+			if js['sex'] in (0,1):
+				self.cursor.execute('UPDATE users SET userinfo="%s", nickname="%s", sex="%s" WHERE username="%s"' %
+					(js['info'], js['nickname'], '男' if js['sex'] == 0 else '女', js['username']))
+				self.db.commit()
+
+				profile = {'nickname': js['nickname'],'userinfo': js['info'],
+					'sex': '男' if js['sex'] == 0 else '女'}
+
+				self.socket.sendto(json.dumps({
+					'action': 'update_profile_ok',
+					'profile': profile,
+					}).encode(), client_addr)
 
 
 	def get_user_friend(self, username):

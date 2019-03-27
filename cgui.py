@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk,IntVar
 from tkinter.messagebox import showinfo, showwarning, showerror
 # askyesnocancel,askretrycancel,ask*
 import socket
@@ -17,12 +17,15 @@ class SJChat():
 		self.receive_loop_thread = None
 		self.keep_alive_thread = None
 		self.username = None
+		self.profile = None
 		self.pre_connect_time = None
 		self.time_difference = None
 
 		self.var_user = None
 		self.var_password = None
 		self.var_repassword = None
+		self.var_nickname = None
+
 		self.top = None
 
 		self.gui_login()
@@ -76,7 +79,7 @@ class SJChat():
 			self.pre_connect_time = js['time']
 			self.time_difference = js['time'] - time()
 			self.top.destroy()
-
+			self.profile = js['profile']
 			# is nessary?
 			del self.var_password
 			del self.var_user
@@ -98,7 +101,7 @@ class SJChat():
 		self.top.destroy()
 		self.top = tk.Tk()
 		self.top.title('SJChat')
-		self.top.geometry('400x300')
+		self.top.geometry('400x540')
 		self.top.resizable(width=False, height=False)
 
 		label_user = tk.Label(self.top, text='账号:', width=120, font=('宋体',16,'normal'))
@@ -119,8 +122,28 @@ class SJChat():
 		repassword = tk.Entry(self.top, text='', textvariable=self.var_repassword, show='*', font=('宋体',16,'normal'))
 		repassword.place(x=110, y=160, width=240, height=30)
 
+		label_nickname = tk.Label(self.top, text='昵称:',width=120, font=('宋体',16,'normal')) 
+		label_nickname.place(x=20, y=205, width=120, height=30)
+		self.var_nickname = tk.StringVar(self.top ,value='')
+		nickname = tk.Entry(self.top, text='', textvariable=self.var_nickname, font=('宋体',16,'normal'))
+		nickname.place(x=110, y=210, width=240, height=30)
+
+		label_info = tk.Label(self.top, text='个性签名:',width=120, font=('宋体',16,'normal')) 
+		label_info.place(x=4, y=255, width=120, height=30)
+		self.info = tk.Text(self.top, width=22, height=6,font=('宋体',16,'normal'))
+		self.info.place(x=110, y=260)
+
+		label_info = tk.Label(self.top, text='性别:',width=120, font=('宋体',16,'normal')) 
+		label_info.place(x=20, y=420, width=120, height=30)
+		self.sex = IntVar()
+		self.sex.set(0)
+		rbtn_sex1 = tk.Radiobutton(self.top, variable=self.sex, text='男', value=0)
+		rbtn_sex1.place(x=140, y=425)
+		rbtn_sex2 = tk.Radiobutton(self.top, variable=self.sex, text='女', value=1)
+		rbtn_sex2.place(x=250, y=425)
+
 		register = tk.Button(self.top, text='确定注册', command=self.register, font=('宋体',16,'normal'))
-		register.place(x=160, y=220, width=100)
+		register.place(x=160, y=460, width=100)
 		tk.mainloop()
 
 
@@ -129,7 +152,10 @@ class SJChat():
 		username = self.var_user.get()
 		password = self.var_password.get()
 		repassword = self.var_repassword.get()
-		
+		nickname = self.var_nickname.get()
+		info = self.info.get(0.0,tk.END)
+		sex = self.sex.get()
+
 		if username == '' or username == None:
 			showwarning('Warning', 'username must be not None')
 			return None
@@ -139,11 +165,19 @@ class SJChat():
 		if password != repassword:
 			showerror('Error', 'password and repassword not equal')
 			return None
+		
+		if nickname == '' or nickname == None:
+			showwarning('Warning', 'nickname must be not None')
+			return None
+
 
 		self.socket.sendto(json.dumps({
 			'action': 'register',
 			'username': username,
 			'password': password,
+			'nickname': nickname,
+			'info': info,
+			'sex': sex,
 			}).encode(), self.host)
 
 		receive_data, addr = self.socket.recvfrom(1024)
@@ -154,6 +188,77 @@ class SJChat():
 			self.gui_login()
 		else:
 			showinfo('INFO', 'register failed')
+
+
+	def gui_add_friend(self):
+		if not self.is_login:
+			return
+		x = tk.Tk()
+		x.title('SJChat add friend')
+		x.geometry('200x160')
+		x.resizable(width=False, height=False)
+
+		var_friend = tk.StringVar(x ,value='')
+		entry_friend = tk.Entry(x, text='', textvariable=var_friend, font=('宋体', 16, 'normal'))
+		entry_friend.pack()
+
+		btn_add = tk.Button(x, text='查找好友', command=self.add_friend, font=('宋体', 16, 'normal'))
+		btn_add.pack()
+
+
+
+	def add_friend(self):
+		pass
+		
+
+	def gui_modify_info(self):
+		if not self.is_login:
+			return
+		self.x = tk.Tk()
+		self.x.title('SJChat')
+		self.x.geometry('400x340')
+		self.x.resizable(width=False, height=False)
+
+		label_nickname = tk.Label(self.x, text='昵称:', width=120, font=('宋体',16,'normal'))
+		label_nickname.place(x=33, y=35, width=120, height=30)
+		self.var_nickname = tk.StringVar(self.x ,value=self.profile['nickname'])
+		nickname = tk.Entry(self.x, textvariable=self.var_nickname, font=('宋体',16,'normal'))
+		nickname.place(x=123, y=40, width=240, height=30)
+
+		label_info = tk.Label(self.x, text='个性签名:',width=120, font=('宋体',16,'normal')) 
+		label_info.place(x=13, y=85, width=120, height=30)
+		self.info = tk.Text(self.x, width=22, height=6, font=('宋体',16,'normal'))
+		self.info.insert(tk.INSERT, self.profile['userinfo'])
+		self.info.place(x=123, y=90)
+
+		label_info = tk.Label(self.x, text='性别:',width=120, font=('宋体',16,'normal')) 
+		label_info.place(x=33, y=240, width=120, height=30)
+		self.sex = IntVar()
+		self.sex.set(0 if self.profile['sex'] == '男' else 1)
+		rbtn_sex1 = tk.Radiobutton(self.x, text='男', variable=self.sex, value=0)
+		rbtn_sex1.place(x=123, y=245)
+		rbtn_sex2 = tk.Radiobutton(self.x, text='女', variable=self.sex, value=1)
+		rbtn_sex2.place(x=220, y=245)
+
+		btn_modify = tk.Button(self.x, text='确认修改', 
+			command=self.modify_info, font=('宋体', 16, 'normal'))
+		btn_modify.place(x=160, y=280)
+
+
+	def modify_info(self):
+		if self.var_nickname.get() == '' or self.var_nickname.get() == None:
+			showwarning('Warning', 'nickname must be not None')
+			return None
+		
+		self.socket.sendto(json.dumps({
+			'action': 'update_profile',
+			'username': self.username,
+			'nickname': self.var_nickname.get(),
+			'info': self.info.get(0.0, tk.END),
+			'sex': self.sex.get(),
+			}).encode(), self.host)
+
+		self.x.destroy()
 
 
 	def _thread_keep_alive(self):
@@ -181,17 +286,15 @@ class SJChat():
 					print('userlist:', js['userlist'])
 				elif js['action'] == 'sendmessage':
 					print('%s: %s' % (js['sender'], js['message']))
+				elif js['action'] == 'update_profile_ok':
+					self.profile = js['profile']
+					self.top.title("SJChat %s" % self.profile['nickname'])
 
 
-	# def get_friend_list(self):
-	# 	self.socket.sendto(json.dumps({
-	# 		'action': 'get_friend_list',
-	# 		'username': username,
-	# 		}).encode(), self.host)
 
 	def gui_main(self):
 		self.top = tk.Tk()
-		self.top.title("SJChat %s" % self.username)
+		self.top.title("SJChat %s" % self.profile['nickname'])
 		self.top.geometry('320x600')
 		self.top.resizable(width=False, height=False)
 		
@@ -216,13 +319,14 @@ class SJChat():
 		self.box.pack()
 
 		# action menu
-		self.addfriend = tk.Button(self.top, text='添加好友', command=None, font=('宋体',14,'normal'))
+		self.addfriend = tk.Button(self.top, text='添加好友', command=self.gui_add_friend, font=('宋体',14,'normal'))
 		self.addfriend.place(x=50, y=480, width=90)
 
-		self.modify_info = tk.Button(self.top, text='修改签名', command=None, font=('宋体',14,'normal'))
-		self.modify_info.place(x=160, y=480, width=90)
+		self.btn_modify_info = tk.Button(self.top, text='修改信息', command=self.gui_modify_info, font=('宋体',14,'normal'))
+		self.btn_modify_info.place(x=160, y=480, width=90)
 
 		tk.mainloop()
+
 
 
 t = SJChat(('127.0.0.1', 12346))
