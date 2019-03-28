@@ -22,6 +22,7 @@ class SJChat():
 		self.time_difference = None
 		self.box = None
 		self.find_user_box = None
+		self.friends = None  # main friends list
 
 		# _recive_thread provided data to gui_add_friend
 		self.res_of_find_friends = []
@@ -78,7 +79,7 @@ class SJChat():
 
 		if js['login'] == 'success':
 			showinfo('INFO', 'login success')
-			self.friends = js['friends']
+			self.friends = js['friends']  # like [['ubird','bird', 'let it go', '在线'], ['uu1','u1', 'df', '离线']]
 			self.is_login = True
 			self.username = username
 			self.pre_connect_time = js['time']
@@ -376,8 +377,30 @@ class SJChat():
 			if 'action' in js.keys():
 				if js['action'] == 'is_online':
 					self.pre_connect_time = js['time']
-				# elif js['action'] == 'userlist':
-				# 	print('userlist:', js['userlist'])
+				elif js['action'] == 'login_inform':
+					for i in self.friends:
+						if i[0] == js['username']:
+							i[3] = "在线"
+							items = self.box.get_children()
+							# remove pre item
+							for item in items:
+								if self.box.item(item,"values")[0] == js['username']:
+									self.box.delete(item)
+							# insert new item
+							self.box.insert('',0,values=i)
+							break
+				elif js['action'] == 'logout_inform':
+					for i in self.friends:
+						if i[0] == js['username']:
+							i[3] = "离线"
+							items = self.box.get_children()
+							# remove pre item
+							for item in items:
+								if self.box.item(item,"values")[0] == js['username']:
+									self.box.delete(item)
+							# insert new item
+							self.box.insert('','end',values=i)
+							break
 				# elif js['action'] == 'sendmessage':
 				# 	print('%s: %s' % (js['sender'], js['message']))
 				elif js['action'] == 'update_profile_ok':
@@ -387,29 +410,44 @@ class SJChat():
 					self.res_of_find_friends = js['friends']
 
 
+	def logout(self):
+		if not self.is_login:
+			return
+		self.socket.sendto(json.dumps({
+				'action': 'exit',
+				'username': self.username,
+				}).encode(), self.host)
+		self.top.destroy()
+
+
+
 	def gui_main(self):
 		self.top = tk.Tk()
 		self.top.title("SJChat %s" % self.profile['nickname'])
-		self.top.geometry('320x600')
+		self.top.geometry('360x600')
 		self.top.resizable(width=False, height=False)
 		
 		# friend list
 		self.scrollbar = tk.Scrollbar(self.top)
 		self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-		title = ['1','2','3']
+		title = ['0','1','2','3']
 		self.box = ttk.Treeview(self.top, columns=title,
 			yscrollcommand=self.scrollbar.set, height='20',
 			show='headings')
 
-		self.box.column('1', width=80, anchor='w')
+		self.box.column('0', width=60, anchor='w')
+		self.box.column('1', width=60, anchor='w')
 		self.box.column('2', width=150, anchor='w')
 		self.box.column('3', width=35, anchor='w')
 
+		self.box.heading('0', text='账号')
 		self.box.heading('1', text='昵称')
 		self.box.heading('2', text='简介')
 		self.box.heading('3', text='状态')
+
 		for i in self.friends:
 			self.box.insert('','end',values=i)
+
 		self.scrollbar.config(command=self.box.yview)
 		self.box.pack()
 
@@ -419,6 +457,8 @@ class SJChat():
 
 		self.btn_modify_info = tk.Button(self.top, text='修改信息', command=self.gui_modify_info, font=('宋体',14,'normal'))
 		self.btn_modify_info.place(x=160, y=480, width=90)
+
+		self.top.protocol("WM_DELETE_WINDOW", self.logout)
 
 		tk.mainloop()
 

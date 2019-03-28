@@ -62,6 +62,8 @@ class ChatServer():
 	def client_exit(self, js, client_addr):
 		if js['username'] in self.user_list:
 			self.user_list.pop(js['username'])
+			friends = self.get_user_friend(js['username'])
+			self.logout_inform(friends, js['username'])
 
 
 	def client_register(self, js, client_addr):
@@ -92,6 +94,7 @@ class ChatServer():
 				}).encode(), client_addr)
 		# 登陆成功
 		elif res[0] == js['password']:
+			# 获取好友列表
 			friends = self.get_user_friend(js['username'])
 			self.socket.sendto(json.dumps({
 				'login': 'success',
@@ -99,6 +102,8 @@ class ChatServer():
 				'profile': {'userinfo': res[1], 'nickname': res[2], 'sex': res[3]},
 				'friends': friends,
 				}).encode(), client_addr)
+			# 通知在线好友上线消息
+			self.login_inform(friends, js['username'])
 			# 登陆成功后添加在线列表
 			user_info = [client_addr, time()]
 			self.user_list[js['username']]=user_info
@@ -163,6 +168,26 @@ class ChatServer():
 					'action': 'res_of_find_friends',
 					'friends': res,
 					}).encode(), client_addr)
+
+
+	def login_inform(self, friends, username):
+		'''After landing successfully, inform your online friends'''
+		for friend in friends:
+			if friend[0] in self.user_list.keys():
+				self.socket.sendto(json.dumps({
+					'action': 'login_inform',
+					'username': username,
+					}).encode(), self.user_list[friend[0]][0])
+
+
+	def logout_inform(self,friends, username):
+		'''After logout, inform your online friends'''
+		for friend in friends:
+			if friend[0] in self.user_list.keys():
+				self.socket.sendto(json.dumps({
+					'action': 'logout_inform',
+					'username': username,
+					}).encode(), self.user_list[friend[0]][0])
 		
 
 	def get_user_friend(self, username):
@@ -171,19 +196,24 @@ class ChatServer():
 		res = self.cursor.fetchall()
 		for i in res:
 			t = []
-			t.append(i[0])
-			self.cursor.execute('SELECT userinfo FROM users WHERE username="%s"' % i[0])
-			t.append(self.cursor.fetchone()[0])
+			self.cursor.execute('SELECT nickname,userinfo FROM users WHERE username="%s"' % i[0])
+			tt = self.cursor.fetchone()
+			t.append(i[0]) # username
+			t.append(tt[0])	# nickname
+			t.append(tt[1])	# userinfo
 			if i[0] in self.user_list:
 				t.append('在线')
 			else:
 				t.append('离线')
 			friend_list.append(t)
-		# return [['bird', 'let it go', '在线'], ['u1', 'df', '离线']]
+		# return [['ubird','bird', 'let it go', '在线'], ['uu1','u1', 'df', '离线']]
 		return friend_list
 
 
 	def _thread_online_judge(self):
+		db = sqlite3.connect('chat.db')
+		cursor = db.cursor()
+		
 		while True:
 			sleep(self.interval)
 			t = time()
@@ -194,6 +224,9 @@ class ChatServer():
 					pop_list.append(i)
 			# pop the user who has timeout
 			for i in pop_list:
+				cursor.execute('SELECT friend FROM friends WHERE username="%s"' % i)
+				res = cursor.fetchall()
+				self.logout_inform(res, i)
 				self.user_list.pop(i)
 	
 	def start(self):
