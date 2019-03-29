@@ -1,11 +1,12 @@
 import tkinter as tk
-from tkinter import ttk,IntVar
-from tkinter.messagebox import showinfo, showwarning, showerror
-# askyesnocancel,askretrycancel,ask*
+from tkinter import ttk,IntVar,StringVar
+from tkinter.messagebox import showinfo, showwarning, showerror, askokcancel
+# askyesno,askretrycancel,ask*
 import socket
 import json
 import threading
-from time import sleep, time
+from time import sleep, time, ctime
+import re
 
 class SJChat():
 	def __init__(self, host):
@@ -23,7 +24,11 @@ class SJChat():
 		self.box = None
 		self.find_user_box = None
 		self.friends = None  # main friends list
-
+		self.selected_furture_friend = None
+		self.sys_messages_count = 0
+		self.var_sys_messages = None
+		self.system_message = []
+		self.sys_message_box = None
 		# _recive_thread provided data to gui_add_friend
 		self.res_of_find_friends = []
 
@@ -197,11 +202,14 @@ class SJChat():
 
 
 	def gui_add_friend(self):
-		# if not self.is_login:
-		# 	return
+		if not self.is_login:
+			return
+
+		self.selected_furture_friend = None
+
 		x = tk.Tk()
 		x.title('SJChat add friend')
-		x.geometry('300x460')
+		x.geometry('360x520')
 		x.resizable(width=False, height=False)
 
 		var_friend_username = tk.StringVar(x ,value='')
@@ -213,10 +221,12 @@ class SJChat():
 		label_username = tk.Label(x, text='账户查找', font=('宋体', 16, 'normal'))
 		label_username.pack()
 
-		entry_friend_username = tk.Entry(x, text='', textvariable=var_friend_username, font=('宋体', 16, 'normal'))
+		entry_friend_username = tk.Entry(x, text='', textvariable=var_friend_username,
+		 font=('宋体', 16, 'normal'))
 		entry_friend_username.pack()
 
-		btn_find_by_username = tk.Button(x, text='账户查找', command=lambda: self.find_by_username(var_friend_username.get(), var_friend_nickname), font=('宋体', 16, 'normal'))
+		btn_find_by_username = tk.Button(x, text='账户查找', command=lambda: self.find_by_username(
+			var_friend_username.get(), var_friend_nickname), font=('宋体', 16, 'normal'))
 		btn_find_by_username.pack()
 
 		label_invisible1 = tk.Label(x, text='')
@@ -225,10 +235,12 @@ class SJChat():
 		label_nickname = tk.Label(x, text='昵称查找', font=('宋体', 16, 'normal'))
 		label_nickname.pack()
 
-		entry_friend_nickname = tk.Entry(x, text='', textvariable=var_friend_nickname, font=('宋体', 16, 'normal'))
+		entry_friend_nickname = tk.Entry(x, text='', textvariable=var_friend_nickname, 
+			font=('宋体', 16, 'normal'))
 		entry_friend_nickname.pack()
 
-		btn_add = tk.Button(x, text='昵称查找', command=lambda: self.find_by_nickname(var_friend_nickname.get(),var_friend_username), font=('宋体', 16, 'normal'))
+		btn_add = tk.Button(x, text='昵称查找', command=lambda: self.find_by_nickname(
+			var_friend_nickname.get(),var_friend_username), font=('宋体', 16, 'normal'))
 		btn_add.pack()
 
 		label_invisible2 = tk.Label(x, text='')
@@ -237,15 +249,17 @@ class SJChat():
 		# result list
 		scrollbar = tk.Scrollbar(x)
 		scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-		title = ['1','2','3']
+		title = ['0','1','2','3']
 		self.find_user_box = ttk.Treeview(x, columns=title,
 			yscrollcommand=scrollbar.set, height='8',
 			show='headings')
 
+		self.find_user_box.column('0', width=80, anchor='w')
 		self.find_user_box.column('1', width=80, anchor='w')
 		self.find_user_box.column('2', width=150, anchor='w')
 		self.find_user_box.column('3', width=35, anchor='w')
 
+		self.find_user_box.heading('0', text='账号')
 		self.find_user_box.heading('1', text='昵称')
 		self.find_user_box.heading('2', text='简介')
 		self.find_user_box.heading('3', text='性别')
@@ -253,8 +267,13 @@ class SJChat():
 		scrollbar.config(command=self.find_user_box.yview)
 		self.find_user_box.pack()
 
-		tk.mainloop()
+		label_invisible3 = tk.Label(x, text='')
+		label_invisible3.pack()
 
+		btn_makesure_add = tk.Button(x, text='确认添加', command=self.click_makesure_add, font=('宋体', 16, 'normal'))
+		btn_makesure_add.pack()
+
+		self.find_user_box.bind('<ButtonRelease-1>', self.click_friendlist)
 
 
 	def find_by_username(self,username,var_friend_nickname):
@@ -277,7 +296,7 @@ class SJChat():
 		sleep(0.5)
 		# insert the list
 		if self.res_of_find_friends != [] and self.res_of_find_friends != None:
-			self.find_user_box.insert('','end',values=self.res_of_find_friends[1:])
+			self.find_user_box.insert('','end',values=self.res_of_find_friends)
 
 
 	def find_by_nickname(self, nickname, var_friend_username):
@@ -298,12 +317,39 @@ class SJChat():
 			}).encode(), self.host)
 
 		sleep(0.5)
+
 		# insert the list
-
 		for item in self.res_of_find_friends:
-			self.find_user_box.insert('','end',values=item[1:])
-			
+			self.find_user_box.insert('','end',values=item)
 
+
+	def click_friendlist(self, event):
+		'''when find a friend and click item'''
+		for item in self.find_user_box.selection():
+			item_text = self.find_user_box.item(item,'values')
+			self.selected_furture_friend = item_text
+
+
+	def click_makesure_add(self):
+		if self.selected_furture_friend != None:
+			# If it's already a friend, then show warning and return
+			for i in self.friends:	
+				if self.selected_furture_friend[0] == i[0]:
+					showwarning('warning', 'you and %s has been friend yet' % self.selected_furture_friend[0])
+					return
+			# can not be good friends with yourself 
+			if self.selected_furture_friend[0] == self.username:
+				showwarning('warning', 'can not be good friends with yourself')
+				return
+
+			self.socket.sendto(json.dumps({
+				'action': 'add_friend',
+				'username': self.username,
+				'friendname': self.selected_furture_friend[0],
+				'request_time': time(),
+				}).encode(), self.host)
+			# make a sleep to make user sure that the action is execute
+			sleep(0.5)
 
 
 	def gui_modify_info(self):
@@ -401,6 +447,16 @@ class SJChat():
 							# insert new item
 							self.box.insert('','end',values=i)
 							break
+				elif js['action'] == 'add_friend_request':
+					self.sys_messages_count += 1
+					self.var_sys_messages.set('系统消息（%d）' % self.sys_messages_count)
+					t = []
+					t.append("添加好友")
+					t.append("%s 请求添加您为好友" % js['friendname'])
+					t.append(ctime(js['request_time']))
+					self.system_message.append(t)
+
+
 				# elif js['action'] == 'sendmessage':
 				# 	print('%s: %s' % (js['sender'], js['message']))
 				elif js['action'] == 'update_profile_ok':
@@ -420,6 +476,52 @@ class SJChat():
 		self.top.destroy()
 
 
+	def gui_sys_message(self):
+		x = tk.Tk()
+		x.title('system message')
+		x.geometry('450x285')
+		x.resizable(width=False, height=False)
+
+		label_invisible0 = tk.Label(x, text='')
+		label_invisible0.pack()
+		# message list
+		scrollbar = tk.Scrollbar(x)
+		scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+		title = ['0','1','2']
+		self.sys_message_box = ttk.Treeview(x, columns=title,
+			yscrollcommand=scrollbar.set, height='10',
+			show='headings')
+
+		self.sys_message_box.column('0', width=60, anchor='w')
+		self.sys_message_box.column('1', width=220, anchor='w')
+		self.sys_message_box.column('2', width=150, anchor='w')
+
+		self.sys_message_box.heading('0', text='类别')
+		self.sys_message_box.heading('1', text='内容')
+		self.sys_message_box.heading('2', text='时间')
+
+		for i in self.system_message:
+			self.sys_message_box.insert('','end',values=i)
+
+		scrollbar.config(command=self.sys_message_box.yview)
+		self.sys_message_box.pack()
+
+		x.bind('<ButtonRelease-1>', self.click_messagelist)
+
+
+	def click_messagelist(self, event):
+		for item in self.sys_message_box.selection():
+			username = re.match(r'(.*) 请求.*' ,self.sys_message_box.item(item,'values')[1]).group(1)
+			if askokcancel('提示', '是否同意添加%s为好友？' % username):
+				self.socket.sendto(json.dumps({
+					'action': 'add_friend_ok',
+					'username': self.username,
+					'friendname': username,
+					}).encode(), self.host)
+			self.sys_message_box.delete(item)
+			self.sys_messages_count -= 1
+			self.var_sys_messages.set('系统消息（%d）' % self.sys_messages_count)
+
 
 	def gui_main(self):
 		self.top = tk.Tk()
@@ -427,6 +529,8 @@ class SJChat():
 		self.top.geometry('360x600')
 		self.top.resizable(width=False, height=False)
 		
+		label_invisible0 = tk.Label(self.top, text='')
+		label_invisible0.pack()
 		# friend list
 		self.scrollbar = tk.Scrollbar(self.top)
 		self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -453,10 +557,16 @@ class SJChat():
 
 		# action menu
 		self.addfriend = tk.Button(self.top, text='添加好友', command=self.gui_add_friend, font=('宋体',14,'normal'))
-		self.addfriend.place(x=50, y=480, width=90)
+		self.addfriend.place(x=60, y=480, width=90)
 
 		self.btn_modify_info = tk.Button(self.top, text='修改信息', command=self.gui_modify_info, font=('宋体',14,'normal'))
-		self.btn_modify_info.place(x=160, y=480, width=90)
+		self.btn_modify_info.place(x=180, y=480, width=90)
+
+		self.var_sys_messages = StringVar()
+		self.var_sys_messages.set('系统消息（%d）' % self.sys_messages_count)
+
+		self.btn_modify_info = tk.Button(self.top, textvariable=self.var_sys_messages, command=self.gui_sys_message, font=('宋体',14,'normal'))
+		self.btn_modify_info.place(x=100, y=530, width=150)
 
 		self.top.protocol("WM_DELETE_WINDOW", self.logout)
 

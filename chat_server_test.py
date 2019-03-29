@@ -18,14 +18,19 @@ class ChatServer():
 	def run(self):
 		self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self.socket.bind(('127.0.0.1', self.port))
+		
 		if not path.exists('chat.db'):
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
+			# create table users for save users info
 			self.cursor.execute('CREATE TABLE users(username varchar(16) PRIMARY KEY,\
 				password varchar(16), userinfo varchar(100), nickname varchar(16), \
 				sex varchar(6) check (sex in ("男","女")))')
+			# create table friends to save the relationship of two users
 			self.cursor.execute('CREATE TABLE friends(username varchar(16),\
 				friend varchar(16), CONSTRAINT pk PRIMARY KEY(username,friend))')
+			# create table add_friend_request for save the request which can not execute right now
+			self.cursor.execute('CREATE TABLE add_friend_request(requested varchar(16), sender varchar(16), request_time varchar(20))')
 		else:
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
@@ -45,6 +50,8 @@ class ChatServer():
 			'sendmessage': self.client_sendmessage,
 			'update_profile': self.client_update_profile,
 			'find_friends': self.client_find_friends,
+			'add_friend': self.client_add_friend,
+			'add_friend_ok': self.client_add_friend_ok,
 			}
 
 		while True:
@@ -69,7 +76,7 @@ class ChatServer():
 	def client_register(self, js, client_addr):
 		self.cursor.execute('SELECT count(*) FROM users WHERE username="%s"' % js['username'])
 		res = self.cursor.fetchone()
-		# 成功注册
+		# Registered success
 		if res[0] == 0:
 			self.cursor.execute('INSERT INTO users values("%s","%s","%s","%s","%s")' % 
 				(js['username'],js['password'],js['info'],js['nickname'],'男' if js['sex'] == 0 else '女'))
@@ -77,7 +84,7 @@ class ChatServer():
 			self.socket.sendto(json.dumps({
 				'register': 'success',
 				}).encode(), client_addr)
-		# 注册失败
+		# Registration failure
 		else:
 			self.socket.sendto(json.dumps({
 				'register': 'failure',
@@ -168,6 +175,22 @@ class ChatServer():
 					'action': 'res_of_find_friends',
 					'friends': res,
 					}).encode(), client_addr)
+
+
+	def client_add_friend(self, js, client_addr):
+		if js['friendname'] in self.user_list:
+			self.socket.sendto(json.dumps({
+				'action': 'add_friend_request',
+				'friendname': js['username'],
+				'request_time': js['request_time']
+				}).encode(), self.user_list[js['friendname']][0])
+		else:
+			# save the add_friend request on database
+			self.cursor.execute('INSERT INTO add_friend_request VALUES("%s","%s","%s")' % (js['friendname'], js['username'], js['request_time']))
+			self.db.commit()
+
+	def client_add_friend_ok(self, js, client_addr):
+		pass
 
 
 	def login_inform(self, friends, username):
