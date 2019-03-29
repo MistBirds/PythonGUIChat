@@ -30,7 +30,8 @@ class ChatServer():
 			self.cursor.execute('CREATE TABLE friends(username varchar(16),\
 				friend varchar(16), CONSTRAINT pk PRIMARY KEY(username,friend))')
 			# create table add_friend_request for save the request which can not execute right now
-			self.cursor.execute('CREATE TABLE add_friend_request(requested varchar(16), sender varchar(16), request_time varchar(20))')
+			self.cursor.execute('CREATE TABLE add_friend_request(requested varchar(16), \
+				sender varchar(16), request_time varchar(20))')
 		else:
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
@@ -103,6 +104,7 @@ class ChatServer():
 		elif res[0] == js['password']:
 			# 获取好友列表
 			friends = self.get_user_friend(js['username'])
+			# 发送好友列表
 			self.socket.sendto(json.dumps({
 				'login': 'success',
 				'time': time(),
@@ -186,11 +188,26 @@ class ChatServer():
 				}).encode(), self.user_list[js['friendname']][0])
 		else:
 			# save the add_friend request on database
-			self.cursor.execute('INSERT INTO add_friend_request VALUES("%s","%s","%s")' % (js['friendname'], js['username'], js['request_time']))
+			self.cursor.execute('INSERT INTO add_friend_request VALUES("%s","%s","%s")' % (js['friendname'], 
+				js['username'], js['request_time']))
 			self.db.commit()
 
 	def client_add_friend_ok(self, js, client_addr):
-		pass
+		res = self.cursor.execute('SELECT username,friend FROM friends WHERE username="%s" \
+			and friend="%s"' % (js['username'], js['friendname'])).fetchone()
+		if res == None:
+			self.cursor.execute('INSERT INTO friends VALUES("%s","%s")' % (js['username'], js['friendname']))
+			self.cursor.execute('INSERT INTO friends VALUES("%s","%s")' % (js['friendname'], js['username']))
+			self.db.commit()
+			# update two user friends list
+			self.socket.sendto(json.dumps({
+				'action': 'update_friends',
+				'friends': self.get_user_friend(js['username']),
+				}).encode(), client_addr)
+			self.socket.sendto(json.dumps({
+				'action': 'update_friends',
+				'friends': self.get_user_friend(js['friendname']),
+				}).encode(), self.user_list[js['friendname']][0])
 
 
 	def login_inform(self, friends, username):
