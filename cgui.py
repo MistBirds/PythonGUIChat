@@ -453,7 +453,7 @@ class SJChat():
 					t = []
 					t.append("添加好友")
 					t.append("%s 请求添加您为好友" % js['friendname'])
-					t.append(ctime(js['request_time']))
+					t.append(ctime(int(float(js['request_time']))))
 					self.system_message.append(t)
 				elif js['action'] == 'update_friends':
 					# clear items in self.box
@@ -530,6 +530,8 @@ class SJChat():
 					}).encode(), self.host)
 			self.sys_message_box.delete(item)
 			self.sys_messages_count -= 1
+			if self.sys_messages_count < 0:
+				self.sys_messages_count = 0
 			self.var_sys_messages.set('系统消息（%d）' % self.sys_messages_count)
 
 

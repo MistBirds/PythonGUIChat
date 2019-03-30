@@ -4,6 +4,7 @@ import sqlite3
 from os import path
 from time import time, sleep
 import threading
+import traceback
 		
 
 class ChatServer():
@@ -31,7 +32,7 @@ class ChatServer():
 				friend varchar(16), CONSTRAINT pk PRIMARY KEY(username,friend))')
 			# create table add_friend_request for save the request which can not execute right now
 			self.cursor.execute('CREATE TABLE add_friend_request(requested varchar(16), \
-				sender varchar(16), request_time varchar(20))')
+				sender varchar(16), request_time varchar(20), is_processed int(1))')
 		else:
 			self.db = sqlite3.connect('chat.db')
 			self.cursor = self.db.cursor()
@@ -65,6 +66,7 @@ class ChatServer():
 					
 			except Exception as e:
 				print('error: ',e)
+				traceback.print_exc()
 				exit(1)
 
 	def client_exit(self, js, client_addr):
@@ -93,7 +95,8 @@ class ChatServer():
 
 
 	def client_login(self, js, client_addr):
-		self.cursor.execute('SELECT password,userinfo,nickname,sex FROM users WHERE username="%s"' % js['username'])
+		self.cursor.execute('SELECT password,userinfo,nickname,sex FROM users\
+		 WHERE username="%s"' % js['username'])
 		res = self.cursor.fetchone()
 		# 登陆失败
 		if (res == None or res[0] != js['password']) or (js['username'] in self.user_list):
@@ -116,6 +119,19 @@ class ChatServer():
 			# 登陆成功后添加在线列表
 			user_info = [client_addr, time()]
 			self.user_list[js['username']]=user_info
+
+			sleep(3)
+			# 获取未处理好友申请列表
+			self.cursor.execute('SELECT requested, sender, request_time FROM \
+				add_friend_request WHERE requested="%s" and is_processed=0' % js['username'])
+			add_friend_requests = self.cursor.fetchall()
+			for item in add_friend_requests:
+				self.socket.sendto(json.dumps({
+					'action': 'add_friend_request',
+					'friendname': item[1],
+					'request_time': item[2],
+					}).encode(), client_addr)
+			self.cursor.execute('UPDATE add_friend_request SET is_processed=1 WHERE requested="%s"' % js['username'])
 
 
 	def client_update_timestamp(self, js, client_addr):
@@ -188,7 +204,7 @@ class ChatServer():
 				}).encode(), self.user_list[js['friendname']][0])
 		else:
 			# save the add_friend request on database
-			self.cursor.execute('INSERT INTO add_friend_request VALUES("%s","%s","%s")' % (js['friendname'], 
+			self.cursor.execute('INSERT INTO add_friend_request VALUES("%s","%s","%s",0)' % (js['friendname'], 
 				js['username'], js['request_time']))
 			self.db.commit()
 
@@ -204,10 +220,11 @@ class ChatServer():
 				'action': 'update_friends',
 				'friends': self.get_user_friend(js['username']),
 				}).encode(), client_addr)
-			self.socket.sendto(json.dumps({
-				'action': 'update_friends',
-				'friends': self.get_user_friend(js['friendname']),
-				}).encode(), self.user_list[js['friendname']][0])
+			if js['friendname'] in self.user_list:
+				self.socket.sendto(json.dumps({
+					'action': 'update_friends',
+					'friends': self.get_user_friend(js['friendname']),
+					}).encode(), self.user_list[js['friendname']][0])
 
 
 	def login_inform(self, friends, username):
