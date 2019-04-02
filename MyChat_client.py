@@ -535,6 +535,39 @@ class SJChat():
 			self.var_sys_messages.set('系统消息（%d）' % self.sys_messages_count)
 
 
+	def click_userlist(self, event):
+		for item in self.box.selection():
+			userprofile = self.box.item(item, 'values')
+			self.gui_chat(userprofile)
+
+	def gui_chat(self,userprofile):
+		chat = tk.Tk()
+		chat.title(userprofile[0] + "  签名：" + userprofile[2])
+		chat.geometry('600x400')
+		chat.resizable(width=False, height=False)
+
+		scrollbar = tk.Scrollbar(chat)
+		scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+		text = tk.Text(chat, width=50, height=15, font=('宋体',16,'normal'))
+		# text.insert(tk.INSERT, "")
+		text.config(state="disabled")
+		text.pack()
+
+		scrollbar.config(command=text.yview)
+
+		var_input = StringVar(chat, '')
+		entry_input = tk.Entry(chat, textvariable=var_input, font=('宋体',16,'normal'))
+		entry_input.place(x=10, y=340, width=450, height=40)
+
+		btn_send = tk.Button(chat, text='发送', width=10, height=2, command=lambda: self.send_message(var_input))
+		btn_send.place(x=470, y=340)
+
+
+	def send_message(self, message):
+		print(message.get(),type(message.get()))
+		showinfo('test', message.get())
+
 	def gui_main(self):
 		self.top = tk.Tk()
 		self.top.title("SJChat %s" % self.profile['nickname'])
@@ -582,8 +615,9 @@ class SJChat():
 
 		self.top.protocol("WM_DELETE_WINDOW", self.logout)
 
-		tk.mainloop()
+		self.box.bind('<ButtonRelease-1>', self.click_userlist)
 
+		tk.mainloop()
 
 
 t = SJChat(('127.0.0.1', 12346))
