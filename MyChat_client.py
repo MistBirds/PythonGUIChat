@@ -31,6 +31,9 @@ class SJChat():
 		self.sys_message_box = None
 		# _recive_thread provided data to gui_add_friend
 		self.res_of_find_friends = []
+		# storage all the chat messages
+		self.messages = {} # like {[True,'hello','how are yoy'],[Flase,'hi']}
+		self.online_friend = {}
 
 		self.var_user = None
 		self.var_password = None
@@ -427,6 +430,7 @@ class SJChat():
 					for i in self.friends:
 						if i[0] == js['username']:
 							i[3] = "在线"
+							self.online_friend[js['username']] = True
 							items = self.box.get_children()
 							# remove pre item
 							for item in items:
@@ -439,6 +443,7 @@ class SJChat():
 					for i in self.friends:
 						if i[0] == js['username']:
 							i[3] = "离线"
+							self.online_friend[js['username']] = False
 							items = self.box.get_children()
 							# remove pre item
 							for item in items:
@@ -465,10 +470,27 @@ class SJChat():
 					# insert item
 					for i in self.friends:
 						self.box.insert('','end',values=i)
+				elif js['action'] == 'sendmessage':
+					# 存储到本地消息变量中
+					if js['sender'] not in self.messages:
+						self.messages[js['sender']]=[]
+						self.messages[js['sender']].append(False)
+					self.messages[js['sender']].append(js['message'])
 
+					# 如果聊天窗口未打开，则好友列表显示有消息
+					if self.messages[js['sender']][0] == False:
+						items = self.box.get_children()
+						newitem = None
+						# remove pre item
+						for item in items:
+							if self.box.item(item,"values")[0] == js['sender']:
+								newitem = self.box.item(item,"values")
+								self.box.delete(item)
+						# insert new item
+						newitem = list(newitem)
+						newitem[3] = '消息'
+						self.box.insert('','end',values=newitem)
 
-				# elif js['action'] == 'sendmessage':
-				# 	print('%s: %s' % (js['sender'], js['message']))
 				elif js['action'] == 'update_profile_ok':
 					self.profile = js['profile']
 					self.top.title("SJChat %s" % self.profile['nickname'])
@@ -541,6 +563,11 @@ class SJChat():
 			self.gui_chat(userprofile)
 
 	def gui_chat(self,userprofile):
+		# userprofile[0]是username
+		if userprofile[0] not in self.messages:
+			self.messages[userprofile[0]]=[]
+			self.messages[userprofile[0]].append(True)
+
 		chat = tk.Tk()
 		chat.title(userprofile[0] + "  签名：" + userprofile[2])
 		chat.geometry('600x400')
@@ -550,8 +577,11 @@ class SJChat():
 		scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
 		text = tk.Text(chat, width=50, height=15, font=('宋体',16,'normal'))
-		# text.insert(tk.INSERT, "")
-		text.config(state="disabled")
+		# 插入消息记录,self.messages[userprofile[0]][0]为窗口是否开启
+		for item in self.messages[userprofile[0]][1:]:
+			text.insert(tk.END, item + '\n') #tk.INSERT
+
+		text.config(state="disabled") #normal
 		text.pack()
 
 		scrollbar.config(command=text.yview)
@@ -560,13 +590,38 @@ class SJChat():
 		entry_input = tk.Entry(chat, textvariable=var_input, font=('宋体',16,'normal'))
 		entry_input.place(x=10, y=340, width=450, height=40)
 
-		btn_send = tk.Button(chat, text='发送', width=10, height=2, command=lambda: self.send_message(var_input))
+		btn_send = tk.Button(chat, text='发送', width=10, height=2, 
+			command=lambda: self.send_message(var_input, userprofile[0]))
 		btn_send.place(x=470, y=340)
 
+		chat.protocol("WM_DELETE_WINDOW", lambda: self.lambda_close_chat(userprofile[0], chat))
 
-	def send_message(self, message):
-		print(message.get(),type(message.get()))
-		showinfo('test', message.get())
+
+	def lambda_close_chat(self, username, chat):
+		self.messages[username][0] = False
+		# 消息状态恢复在在线
+		items = self.box.get_children()
+		newitem = None
+		# remove pre item
+		for item in items:
+			if self.box.item(item,"values")[0] == username:
+				newitem = self.box.item(item,"values")
+				self.box.delete(item)
+		# insert new item
+		newitem = list(newitem)
+		newitem[3] = '在线' if self.online_friend[username] == True else '离线'
+		self.box.insert('','end',values=newitem)
+		chat.destroy()
+
+
+	def send_message(self, message, friendname):
+		self.socket.sendto(json.dumps({
+			'action': 'sendmessage',
+			'sender': self.username,
+			'acceptor': friendname,
+			'message': message.get(),
+			}).encode(), self.host)
+
 
 	def gui_main(self):
 		self.top = tk.Tk()
@@ -595,6 +650,10 @@ class SJChat():
 		self.box.heading('3', text='状态')
 
 		for i in self.friends:
+			if i[3] == '在线':
+				self.online_friend[i[0]] = True
+			else:
+				self.online_friend[i[0]] = False
 			self.box.insert('','end',values=i)
 
 		self.scrollbar.config(command=self.box.yview)

@@ -155,7 +155,7 @@ class ChatServer():
 			self.socket.sendto(json.dumps({
 				'action': 'sendmessage',
 				'message': js['message'],
-				'sender': js['username'],
+				'sender': js['sender'],
 				}).encode(), self.user_list[js['acceptor']][0])
 
 
