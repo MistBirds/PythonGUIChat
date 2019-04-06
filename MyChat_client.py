@@ -7,6 +7,8 @@ import json
 import threading
 from time import sleep, time, ctime
 import re
+# 自定义工具类utils
+from utils import lformat, rformat
 
 class SJChat():
 	def __init__(self, host):
@@ -475,7 +477,7 @@ class SJChat():
 					if js['sender'] not in self.messages:
 						self.messages[js['sender']]=[]
 						self.messages[js['sender']].append(False)
-					self.messages[js['sender']].append(js['message'])
+					self.messages[js['sender']].append(lformat(js['message'],40))
 
 					# 如果聊天窗口未打开，则好友列表显示有消息
 					if self.messages[js['sender']][0] == False:
@@ -579,7 +581,7 @@ class SJChat():
 		text = tk.Text(chat, width=50, height=15, font=('宋体',16,'normal'))
 		# 插入消息记录,self.messages[userprofile[0]][0]为窗口是否开启
 		for item in self.messages[userprofile[0]][1:]:
-			text.insert(tk.END, item + '\n') #tk.INSERT
+			text.insert(tk.END, item + '\n\n') #tk.INSERT
 
 		text.config(state="disabled") #normal
 		text.pack()
@@ -621,6 +623,9 @@ class SJChat():
 			'acceptor': friendname,
 			'message': message.get(),
 			}).encode(), self.host)
+		# 添加到本地聊天消息列表
+		self.messages[friendname].append(rformat(message.get(),40,50))
+
 
 
 	def gui_main(self):
