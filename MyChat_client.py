@@ -567,9 +567,10 @@ class SJChat():
 	def gui_chat(self,userprofile):
 		# userprofile[0]是username
 		if userprofile[0] not in self.messages:
-			self.messages[userprofile[0]]=[]
+			self.messages[userprofile[0]] = []
 			self.messages[userprofile[0]].append(True)
-
+		else:
+			self.messages[userprofile[0]][0] = True
 		chat = tk.Tk()
 		chat.title(userprofile[0] + "  签名：" + userprofile[2])
 		chat.geometry('600x400')
@@ -597,6 +598,22 @@ class SJChat():
 		btn_send.place(x=470, y=340)
 
 		chat.protocol("WM_DELETE_WINDOW", lambda: self.lambda_close_chat(userprofile[0], chat))
+
+		self.chat_gui_timer(text, userprofile[0])
+		chat.mainloop()
+
+
+
+	def chat_gui_timer(self, text, friendname):
+		if self.messages[friendname][0] == False:
+			return
+		timer = threading.Timer(1, self.chat_gui_timer,(text, friendname,))
+		timer.start()
+		text.config(state="normal")
+		text.delete(0.0,tk.END)
+		for item in self.messages[friendname][1:]:
+			text.insert(tk.END, item + '\n\n')
+		text.config(state="disabled")
 
 
 	def lambda_close_chat(self, username, chat):
